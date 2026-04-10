@@ -13,7 +13,7 @@ export function RepositoriesPage({ analysis }: { analysis: AnalysisResult }) {
       <div className="grid gap-4">
         {analysis.repositories.map((repo) => (
           <a
-            key={repo.name}
+            key={repo.fullName}
             href={repo.url}
             target="_blank"
             rel="noreferrer"
@@ -21,7 +21,21 @@ export function RepositoriesPage({ analysis }: { analysis: AnalysisResult }) {
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <h3 className="text-lg font-semibold text-primary hover:underline mb-2">{repo.name}</h3>
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <h3 className="text-lg font-semibold text-primary hover:underline">{repo.name}</h3>
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                      repo.isCollaborated
+                        ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                        : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                    }`}
+                  >
+                    {repo.isCollaborated ? 'Collaborated' : 'Owned'}
+                  </span>
+                  {repo.isCollaborated && repo.ownerLogin && (
+                    <span className="text-xs text-muted">Owner: {repo.ownerLogin}</span>
+                  )}
+                </div>
                 <p className="text-sm text-muted mb-3 line-clamp-2">
                   {repo.description || 'No description provided.'}
                 </p>

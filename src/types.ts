@@ -20,8 +20,11 @@ export interface AnalysisResult {
     total_commits: number
   }
   repositories: Array<{
+    fullName: string
     name: string
     url: string
+    ownerLogin: string
+    isCollaborated: boolean
     stars: number
     language: string
     description?: string
@@ -31,7 +34,6 @@ export interface AnalysisResult {
   }>
   languages: Array<{ name: string; percentage: number }>
   risks: string[]
-  hidden_states: Array<{ state: string; probability: number }>
 }
 
 export interface SearchResult {

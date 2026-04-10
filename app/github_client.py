@@ -72,18 +72,130 @@ class GitHubClient:
 
     async def fetch_repos(self, username: str) -> list[dict[str, Any]]:
         repos: list[dict[str, Any]] = []
+        seen_full_names: set[str] = set()
         per_page = 100
         page = 1
         while True:
             batch = await self._get(
                 f"/users/{username}/repos",
-                params={"sort": "updated", "per_page": per_page, "page": page, "type": "owner"},
+                # Include public repos where the user is an org/team member or collaborator.
+                params={"sort": "updated", "per_page": per_page, "page": page, "type": "all"},
             )
-            repos.extend(batch)
+            for repo in batch:
+                full_name = str(repo.get("full_name") or "").strip().lower()
+                if not full_name or full_name in seen_full_names:
+                    continue
+                seen_full_names.add(full_name)
+                repos.append(repo)
             if len(batch) < per_page:
                 break
             page += 1
+
+        # Supplement with repos from recent public events and commit search to better capture collaborations.
+        public_event_repo_names = await self.fetch_public_event_repo_names(username)
+        commit_search_repo_names = await self.fetch_commit_search_repo_names(username)
+        discovered_repo_names: list[str] = []
+        seen_discovered: set[str] = set()
+        for repo_name in [*public_event_repo_names, *commit_search_repo_names]:
+            normalized = repo_name.lower()
+            if normalized in seen_discovered:
+                continue
+            seen_discovered.add(normalized)
+            discovered_repo_names.append(repo_name)
+
+        missing_repo_names = [name for name in discovered_repo_names if name.lower() not in seen_full_names]
+        if missing_repo_names:
+            detail_tasks = [self.fetch_repo_by_full_name(name) for name in missing_repo_names[:40]]
+            detail_results = await asyncio.gather(*detail_tasks, return_exceptions=True)
+            for result in detail_results:
+                if not isinstance(result, dict):
+                    continue
+                full_name = str(result.get("full_name") or "").strip().lower()
+                if not full_name or full_name in seen_full_names:
+                    continue
+                seen_full_names.add(full_name)
+                repos.append(result)
+
         return repos
+
+    async def fetch_repo_by_full_name(self, full_name: str) -> dict[str, Any]:
+        return await self._get(f"/repos/{full_name}")
+
+    async def fetch_public_event_repo_names(self, username: str, max_pages: int = 3, per_page: int = 100) -> list[str]:
+        repo_names: list[str] = []
+        seen: set[str] = set()
+        for page in range(1, max_pages + 1):
+            events = await self._get(
+                f"/users/{username}/events/public",
+                params={"page": page, "per_page": per_page},
+            )
+            if not isinstance(events, list) or not events:
+                break
+
+            for event in events:
+                event_type = event.get("type")
+                if event_type not in {"PushEvent", "PullRequestEvent", "PullRequestReviewEvent", "IssueCommentEvent", "CreateEvent"}:
+                    continue
+                repo_name = str((event.get("repo") or {}).get("name") or "").strip()
+                if not repo_name:
+                    continue
+                normalized = repo_name.lower()
+                if normalized in seen:
+                    continue
+                seen.add(normalized)
+                repo_names.append(repo_name)
+
+            if len(events) < per_page:
+                break
+
+        return repo_names
+
+    async def fetch_public_events(self, username: str, max_pages: int = 3, per_page: int = 100) -> list[dict[str, Any]]:
+        events: list[dict[str, Any]] = []
+        for page in range(1, max_pages + 1):
+            batch = await self._get(
+                f"/users/{username}/events/public",
+                params={"page": page, "per_page": per_page},
+            )
+            if not isinstance(batch, list) or not batch:
+                break
+            events.extend(item for item in batch if isinstance(item, dict))
+            if len(batch) < per_page:
+                break
+        return events
+
+    async def fetch_commit_search_repo_names(self, username: str, max_pages: int = 2, per_page: int = 100) -> list[str]:
+        repo_names: list[str] = []
+        seen: set[str] = set()
+        for page in range(1, max_pages + 1):
+            payload = await self._get(
+                "/search/commits",
+                params={
+                    "q": f"author:{username}",
+                    "sort": "author-date",
+                    "order": "desc",
+                    "per_page": per_page,
+                    "page": page,
+                },
+            )
+            items = payload.get("items", []) if isinstance(payload, dict) else []
+            if not items:
+                break
+
+            for item in items:
+                repo_name = str((item.get("repository") or {}).get("full_name") or "").strip()
+                if not repo_name:
+                    continue
+                normalized = repo_name.lower()
+                if normalized in seen:
+                    continue
+                seen.add(normalized)
+                repo_names.append(repo_name)
+
+            if len(items) < per_page:
+                break
+
+        return repo_names
 
     async def fetch_repo_languages(self, owner: str, repo: str) -> dict[str, int]:
         return await self._get(f"/repos/{owner}/{repo}/languages")
@@ -113,18 +225,22 @@ class GitHubClient:
         repo: str,
         username: str,
         since: datetime,
-        max_pages: int = 2,
-        max_commits: int = 60,
+        max_pages: int | None = 2,
+        max_commits: int | None = 60,
     ) -> list[dict[str, Any]]:
         commits: list[dict[str, Any]] = []
-        per_page = min(100, max(20, max_commits))
-        for page in range(1, max_pages + 1):
+        per_page = 100 if max_commits is None else min(100, max(20, max_commits))
+        page = 1
+        while True:
             batch = await self.fetch_commit_page(owner, repo, username, since, page, per_page=per_page)
             commits.extend(batch)
-            if len(commits) >= max_commits:
+            if max_commits is not None and len(commits) >= max_commits:
                 commits = commits[:max_commits]
                 break
             if len(batch) < per_page:
+                break
+            page += 1
+            if max_pages is not None and page > max_pages:
                 break
         return commits
 

@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     app_title: str = "Intelligent Developer Hiring & Analytics System"
     github_token: str | None = None
     github_api_base: str = "https://api.github.com"
-    max_repos: int = 6
+    max_repos: int = 20
     max_commits_per_repo: int = 60
     analysis_weeks: int = 52
     request_timeout_seconds: float = 20.0

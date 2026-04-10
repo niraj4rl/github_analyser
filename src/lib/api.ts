@@ -15,7 +15,10 @@ type RawAnalysisResponse = {
     languages: Record<string, number>
     repo_stats: Array<{
       name: string
+      full_name: string
       html_url: string
+      owner_login?: string
+      is_collaborated?: boolean
       stars: number
       language: string | null
       description?: string | null
@@ -23,7 +26,6 @@ type RawAnalysisResponse = {
       open_issues?: number
       updated_at?: string | null
     }>
-    hidden_state_probabilities: Record<string, number>
   }
 }
 
@@ -44,8 +46,11 @@ function normalizeAnalysis(payload: RawAnalysisResponse): AnalysisResult {
       total_commits: totalCommits,
     },
     repositories: (payload.analytics?.repo_stats ?? []).map((repo) => ({
+      fullName: repo.full_name,
       name: repo.name,
       url: repo.html_url,
+      ownerLogin: repo.owner_login ?? '',
+      isCollaborated: Boolean(repo.is_collaborated),
       stars: repo.stars ?? 0,
       language: repo.language ?? 'Unknown',
       description: repo.description ?? undefined,
@@ -56,10 +61,6 @@ function normalizeAnalysis(payload: RawAnalysisResponse): AnalysisResult {
     languages: Object.entries(payload.analytics?.languages ?? {}).map(([name, percentage]) => ({
       name,
       percentage,
-    })),
-    hidden_states: Object.entries(payload.analytics?.hidden_state_probabilities ?? {}).map(([state, probability]) => ({
-      state,
-      probability,
     })),
   }
 }

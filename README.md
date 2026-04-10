@@ -18,11 +18,16 @@ FastAPI + GitHub API + ML + HMM dashboard for developer hiring analytics.
    pip install -r requirements.txt
    ```
 3. Copy `.env.example` to `.env` and add an optional `GITHUB_TOKEN`.
-4. Start the server:
+4. Build the React frontend:
+   ```bash
+   npm install
+   npm run build
+   ```
+5. Start the server:
    ```bash
    uvicorn app.main:app --reload
    ```
-5. Open `http://127.0.0.1:8000`.
+6. Open `http://127.0.0.1:8000`.
 
 ## API
 

@@ -15,7 +15,6 @@ from .schemas import AnalyzeRequest, SearchUsersResponseSchema
 
 
 BASE_DIR = Path(__file__).resolve().parent
-STATIC_DIR = BASE_DIR / "static"
 DIST_DIR = BASE_DIR.parent / "dist"
 
 settings = get_settings()
@@ -29,20 +28,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount React build dist folder if it exists (production)
-if DIST_DIR.exists():
+# Mount React build assets.
+if DIST_DIR.exists() and (DIST_DIR / "assets").exists():
     app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
-else:
-    # Mount static files for development (vanilla JS frontend)
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/")
 async def root() -> FileResponse:
-    # Serve React build in production, fallback to vanilla JS in development
     if DIST_DIR.exists() and (DIST_DIR / "index.html").exists():
         return FileResponse(DIST_DIR / "index.html")
-    return FileResponse(STATIC_DIR / "index.html")
+    raise HTTPException(
+        status_code=503,
+        detail="Frontend build not found. Run `npm run build` to generate dist/.",
+    )
 
 
 @app.get("/health")
@@ -107,9 +105,12 @@ async def spa_fallback(path_name: str) -> FileResponse:
     # Keep API routes reachable.
     if path_name in {"health", "search-users", "analyze-user"}:
         raise HTTPException(status_code=404)
-    if path_name.startswith("static/") or path_name.startswith("assets/"):
+    if path_name.startswith("assets/"):
         raise HTTPException(status_code=404)
 
     if DIST_DIR.exists() and (DIST_DIR / "index.html").exists():
         return FileResponse(DIST_DIR / "index.html")
-    return FileResponse(STATIC_DIR / "index.html")
+    raise HTTPException(
+        status_code=503,
+        detail="Frontend build not found. Run `npm run build` to generate dist/.",
+    )

@@ -3,20 +3,22 @@ from __future__ import annotations
 import asyncio
 import copy
 import math
+import re
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
 from .config import Settings
-from .github_client import GitHubClient, GitHubRateLimitError, analysis_window
+from .github_client import GitHubClient, GitHubRateLimitError
 from .hmm_engine import infer_hmm_state
 from .nlp import classify_commit_message
 from .scoring import determine_recommendation, predict_hire_score
 
 
 ANALYSIS_CACHE_TTL_SECONDS = 600
-ANALYSIS_CACHE_VERSION = "v7-score-gated-strength-insights"
+ANALYSIS_CACHE_VERSION = "v14-hmm-quality-observations"
 _ANALYSIS_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
+PR_MERGE_PATTERN = re.compile(r"merge pull request|\bpr\b|pull request", flags=re.IGNORECASE)
 
 
 def _cache_key(username: str) -> str:
@@ -126,18 +128,32 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
 
     client = GitHubClient(settings)
     try:
-        profile, repos = await asyncio.gather(client.fetch_user(username), client.fetch_repos(username))
+        profile, repos, public_events = await asyncio.gather(
+            client.fetch_user(username),
+            client.fetch_repos(username),
+            client.fetch_public_events(username),
+        )
         repos = sorted(repos, key=lambda item: item.get("updated_at") or "", reverse=True)
-        window_start = analysis_window(settings.analysis_weeks)
+        if settings.max_repos > 0:
+            repos = repos[: settings.max_repos]
+
+        now_utc = datetime.now(timezone.utc)
+        profile_created_at = _parse_datetime(profile.get("created_at"))
+        window_start = profile_created_at or now_utc
+        effective_weeks = max(1, ((now_utc - window_start).days // 7) + 1)
 
         language_totals: dict[str, int] = defaultdict(int)
         repo_stats: list[dict[str, Any]] = []
         all_commits: list[dict[str, Any]] = []
-        activity_by_week = [0 for _ in range(settings.analysis_weeks)]
+        activity_by_week = [0 for _ in range(effective_weeks)]
         heatmap_counts: Counter[str] = Counter()
         repo_timeline: list[dict[str, Any]] = []
-        repo_update_scores: list[float] = [0.0 for _ in range(settings.analysis_weeks)]
+        repo_update_scores: list[float] = [0.0 for _ in range(effective_weeks)]
         commit_intelligence: list[dict[str, Any]] = []
+        weekly_repo_sets: list[set[str]] = [set() for _ in range(effective_weeks)]
+        weekly_low_value_commits = [0 for _ in range(effective_weeks)]
+        weekly_pr_merge_commits = [0 for _ in range(effective_weeks)]
+        weekly_review_events = [0 for _ in range(effective_weeks)]
 
         repo_fetch_tasks = []
         for repo in repos:
@@ -151,7 +167,6 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
             language_maps.append(result if isinstance(result, dict) else {})
 
         commit_tasks = []
-        max_commit_pages = max(1, math.ceil(settings.max_commits_per_repo / 100))
         for repo in repos:
             owner = repo["owner"]["login"]
             repo_name = repo["name"]
@@ -161,8 +176,8 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
                     repo_name,
                     username,
                     window_start,
-                    max_pages=max_commit_pages,
-                    max_commits=settings.max_commits_per_repo,
+                    max_pages=None,
+                    max_commits=None,
                 )
             )
 
@@ -172,6 +187,10 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
             repo_languages = language_maps[index]
             for language_name, bytes_count in repo_languages.items():
                 language_totals[language_name] += int(bytes_count)
+
+            repo_owner_login = str((repo.get("owner") or {}).get("login") or "").strip()
+            requested_login = str(profile.get("login") or username).strip()
+            is_collaborated = bool(repo_owner_login) and repo_owner_login.lower() != requested_login.lower()
 
             quality_score = _repo_quality_score(repo)
             complexity_score = _project_complexity_score(repo, repo_languages)
@@ -186,6 +205,8 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
                     "name": repo["name"],
                     "full_name": repo["full_name"],
                     "html_url": repo["html_url"],
+                    "owner_login": repo_owner_login,
+                    "is_collaborated": is_collaborated,
                     "description": repo.get("description"),
                     "language": repo.get("language"),
                     "stars": repo.get("stargazers_count", 0),
@@ -207,16 +228,21 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
                 commit_date = _parse_datetime(commit.get("commit", {}).get("committer", {}).get("date"))
                 if not commit_date:
                     continue
-                week_idx = _week_index(commit_date, window_start, settings.analysis_weeks)
+                week_idx = _week_index(commit_date, window_start, effective_weeks)
                 if week_idx is None:
                     continue
                 activity_by_week[week_idx] += 1
                 repo_update_scores[week_idx] = min(repo_update_scores[week_idx] + 0.6, 1.0)
+                weekly_repo_sets[week_idx].add(repo["full_name"])
                 heatmap_key = commit_date.strftime("%Y-%m-%d")
                 heatmap_counts[heatmap_key] += 1
 
                 message = commit.get("commit", {}).get("message", "")
                 intelligence = classify_commit_message(message)
+                if intelligence.tag == "Low Value":
+                    weekly_low_value_commits[week_idx] += 1
+                if PR_MERGE_PATTERN.search(message):
+                    weekly_pr_merge_commits[week_idx] += 1
                 commit_intelligence.append(
                     {
                         "repo": repo["name"],
@@ -240,14 +266,26 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
                 }
             )
 
+        for event in public_events:
+            event_type = str(event.get("type") or "")
+            if event_type not in {"PullRequestReviewEvent", "PullRequestReviewCommentEvent"}:
+                continue
+            event_date = _parse_datetime((event.get("created_at") or None))
+            if not event_date:
+                continue
+            week_idx = _week_index(event_date, window_start, effective_weeks)
+            if week_idx is None:
+                continue
+            weekly_review_events[week_idx] += 1
+
         language_share = _language_share(dict(language_totals))
         language_entropy = _entropy(language_share)
         meaningful_languages = [name for name, share in language_share.items() if share >= 3.0]
         language_coverage = min(len(meaningful_languages) / 8.0, 1.0)
         total_commits = sum(activity_by_week)
         active_weeks = sum(1 for value in activity_by_week if value > 0)
-        avg_commits = total_commits / settings.analysis_weeks if settings.analysis_weeks else 0.0
-        consistency = min((active_weeks / settings.analysis_weeks) * 0.7 + (avg_commits / 12.0) * 0.3, 1.0)
+        avg_commits = total_commits / effective_weeks if effective_weeks else 0.0
+        consistency = min((active_weeks / effective_weeks) * 0.7 + (avg_commits / 12.0) * 0.3, 1.0)
         repo_quality = min((sum(item["quality_score"] for item in repo_stats) / max(len(repo_stats), 1)) / 100, 1.0)
         project_complexity = min((sum(item["complexity_score"] for item in repo_stats) / max(len(repo_stats), 1)) / 100, 1.0)
         engagement = min((profile.get("followers", 0) / max(profile.get("following", 1), 1)) * 0.15 + (total_commits / 80.0) * 0.85, 1.0)
@@ -268,18 +306,46 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
             "commit_intent": commit_intent,
             "risk_penalty": risk_penalty,
         }
-        hire_score, coefficients = predict_hire_score(metrics)
 
-        gap_sequence = []
-        for index, commits in enumerate(activity_by_week):
-            if commits == 0:
-                gap_sequence.append(1.2 if index < settings.analysis_weeks - 6 else 0.8)
-            else:
-                gap_sequence.append(max(0.05, 1.0 / (commits + 0.75)))
+        repo_breadth_denominator = float(max(len(repos), 1))
+        max_review_events = max(weekly_review_events) if weekly_review_events else 0
+        weekly_repo_breadth = [min(len(week_repos) / repo_breadth_denominator, 1.0) for week_repos in weekly_repo_sets]
+        weekly_low_value_ratio = [
+            (weekly_low_value_commits[index] / commits) if commits > 0 else 0.0
+            for index, commits in enumerate(activity_by_week)
+        ]
+        weekly_pr_merge_ratio = [
+            (weekly_pr_merge_commits[index] / commits) if commits > 0 else 0.0
+            for index, commits in enumerate(activity_by_week)
+        ]
+        weekly_review_activity = [
+            (weekly_review_events[index] / max_review_events) if max_review_events > 0 else 0.0
+            for index in range(effective_weeks)
+        ]
 
-        hmm_result = infer_hmm_state(activity_by_week, gap_sequence, repo_update_scores)
+        hmm_result = infer_hmm_state(
+            activity_by_week,
+            weekly_repo_breadth,
+            weekly_low_value_ratio,
+            weekly_pr_merge_ratio,
+            weekly_review_activity,
+            repo_update_scores,
+        )
         state = hmm_result.state
         trend = hmm_result.trend
+
+        hmm_metrics = {
+            "hmm_state_score": hmm_result.state_score,
+            "hmm_confidence": hmm_result.confidence,
+            "hmm_momentum": hmm_result.momentum,
+            "hmm_stability": hmm_result.stability,
+            "hmm_decline_risk": hmm_result.decline_risk,
+        }
+        metrics = {
+            **hmm_metrics,
+            **metrics,
+        }
+        hire_score, coefficients = predict_hire_score(metrics)
 
         risks: list[str] = []
         if risk_penalty >= 0.35:
@@ -290,8 +356,12 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
             risks.append("Repository quality signals are below the hiring threshold.")
         if engagement < 0.2:
             risks.append("Community engagement is limited relative to activity.")
+        if hmm_result.decline_risk >= 0.45:
+            risks.append("HMM indicates elevated short-term decline risk.")
+        if hmm_result.stability < 0.45:
+            risks.append("Hidden state trajectory is unstable across recent weeks.")
 
-        recommendation = determine_recommendation(hire_score, state, risks)
+        recommendation = determine_recommendation(hire_score, state, risks, hmm_metrics)
 
         full_window_commits = activity_by_week
         activity_heatmap = [{"date": key, "count": count} for key, count in heatmap_counts.most_common(140)]
@@ -331,7 +401,9 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
         insights = [
             strength_insight,
             f"They made {total_commits} commits during the selected time period.",
-            f"Project complexity score is {project_complexity * 100:.0f}/100 and is a major factor in the final score.",
+            f"HMM confidence is {hmm_result.confidence * 100:.0f}% with {hmm_result.decline_risk * 100:.0f}% next-step decline risk.",
+            f"Hidden-state stability is {hmm_result.stability * 100:.0f}% and momentum is {hmm_result.momentum * 100:.0f}/100.",
+            f"Project complexity score is {project_complexity * 100:.0f}/100 and remains a major factor in the final score.",
             f"Their code activity {language_style}.",
             f"{len(meaningful_languages)} main language(s) are used regularly in their projects.",
             f"Overall contribution trend currently looks {state.lower()}.",
@@ -360,6 +432,13 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
                 },
                 "commit_intelligence": commits_for_frontend,
                 "hidden_state_probabilities": hmm_result.probabilities,
+                "hmm_diagnostics": {
+                    "confidence": hmm_result.confidence,
+                    "state_score": hmm_result.state_score,
+                    "momentum": hmm_result.momentum,
+                    "stability": hmm_result.stability,
+                    "decline_risk": hmm_result.decline_risk,
+                },
             },
             "insights": insights,
             "risks": risks,
