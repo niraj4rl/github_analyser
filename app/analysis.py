@@ -16,7 +16,7 @@ from .scoring import determine_recommendation, predict_hire_score
 
 
 ANALYSIS_CACHE_TTL_SECONDS = 600
-ANALYSIS_CACHE_VERSION = "v14-hmm-quality-observations"
+ANALYSIS_CACHE_VERSION = "v15-full-history-heatmap"
 _ANALYSIS_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
 PR_MERGE_PATTERN = re.compile(r"merge pull request|\bpr\b|pull request", flags=re.IGNORECASE)
 
@@ -364,8 +364,7 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
         recommendation = determine_recommendation(hire_score, state, risks, hmm_metrics)
 
         full_window_commits = activity_by_week
-        activity_heatmap = [{"date": key, "count": count} for key, count in heatmap_counts.most_common(140)]
-        activity_heatmap.sort(key=lambda item: item["date"])
+        activity_heatmap = [{"date": key, "count": count} for key, count in sorted(heatmap_counts.items())]
 
         commits_for_frontend = sorted(
             commit_intelligence,

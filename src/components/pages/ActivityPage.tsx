@@ -1,10 +1,7 @@
-import { useEffect, useRef } from 'react'
-import Chart from 'chart.js/auto'
+import { useMemo } from 'react'
 import { AnalysisResult } from '@/types'
 
 export function ActivityPage({ analysis }: { analysis: AnalysisResult }) {
-  const chartRef = useRef<HTMLCanvasElement>(null)
-  const chartInstanceRef = useRef<Chart | null>(null)
   const weekly = analysis.activity.commits_per_week
   const weeklyCounts = weekly.map((item) => item.count)
   const totalWeeks = weeklyCounts.length
@@ -19,89 +16,71 @@ export function ActivityPage({ analysis }: { analysis: AnalysisResult }) {
   const previous12Total = previous12.reduce((sum, count) => sum + count, 0)
   const trendDelta = recent12Total - previous12Total
 
+  const tooltipDateFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  const monthLabelFormatter = new Intl.DateTimeFormat(undefined, { month: 'short' })
+
+  const toKey = (date: Date) => {
+    const year = date.getUTCFullYear()
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(date.getUTCDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const heatmap = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const start = analysis.profile.created_at ? new Date(analysis.profile.created_at) : new Date(today)
+    start.setHours(0, 0, 0, 0)
+
+    const gridStart = new Date(start)
+    gridStart.setDate(gridStart.getDate() - gridStart.getDay())
+
+    const countsByDate = new Map<string, number>(
+      (analysis.activity.daily_heatmap ?? []).map((item) => [item.date, item.count]),
+    )
+
+    const weeks: Array<Array<{ date: Date; count: number; level: number }>> = []
+    const monthLabels: string[] = []
+    let maxCount = 0
+
+    for (let cursor = new Date(gridStart); cursor <= today; cursor.setDate(cursor.getDate() + 1)) {
+      const day = new Date(cursor)
+      const weekIndex = Math.floor((day.getTime() - gridStart.getTime()) / (7 * 24 * 60 * 60 * 1000))
+      if (!weeks[weekIndex]) {
+        weeks[weekIndex] = []
+        if (weekIndex === 0) {
+          monthLabels[weekIndex] = monthLabelFormatter.format(day)
+        } else {
+          const prevWeekFirst = weeks[weekIndex - 1]?.[0]?.date
+          monthLabels[weekIndex] = prevWeekFirst && prevWeekFirst.getMonth() === day.getMonth() ? '' : monthLabelFormatter.format(day)
+        }
+      }
+
+      const count = countsByDate.get(toKey(day)) ?? 0
+      maxCount = Math.max(maxCount, count)
+      weeks[weekIndex].push({ date: day, count, level: 0 })
+    }
+
+    for (const week of weeks) {
+      for (const day of week) {
+        if (day.count <= 0 || maxCount <= 0) {
+          day.level = 0
+          continue
+        }
+        const ratio = day.count / maxCount
+        day.level = ratio > 0.75 ? 4 : ratio > 0.5 ? 3 : ratio > 0.25 ? 2 : 1
+      }
+    }
+
+    return { weeks, monthLabels }
+  }, [analysis.activity.daily_heatmap, analysis.profile.created_at])
+
   let currentStreak = 0
   for (let index = weeklyCounts.length - 1; index >= 0; index -= 1) {
     if (weeklyCounts[index] <= 0) break
     currentStreak += 1
   }
-
-  const movingAverage = weeklyCounts.map((_, index, values) => {
-    const start = Math.max(0, index - 3)
-    const window = values.slice(start, index + 1)
-    const average = window.reduce((sum, value) => sum + value, 0) / window.length
-    return Number(average.toFixed(2))
-  })
-
-  useEffect(() => {
-    if (!chartRef.current || !analysis.activity.commits_per_week) return
-
-    if (chartInstanceRef.current) {
-      chartInstanceRef.current.destroy()
-    }
-
-    const ctx = chartRef.current.getContext('2d')
-    if (!ctx) return
-
-    chartInstanceRef.current = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: analysis.activity.commits_per_week.map((d) => `Week ${d.week}`),
-        datasets: [
-          {
-            label: 'Commits',
-            data: analysis.activity.commits_per_week.map((d) => d.count),
-            borderColor: '#1f6feb',
-            backgroundColor: 'rgba(31, 111, 235, 0.1)',
-            tension: 0.4,
-            fill: true,
-            pointRadius: 1.5,
-            pointHoverRadius: 4,
-          },
-          {
-            label: '4-week moving average',
-            data: movingAverage,
-            borderColor: '#2ea043',
-            backgroundColor: 'transparent',
-            tension: 0.25,
-            borderDash: [6, 4],
-            pointRadius: 0,
-            fill: false,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            labels: { color: '#c9d1d9' },
-          },
-          tooltip: {
-            callbacks: {
-              label: (context) => `${context.dataset.label}: ${context.parsed.y}`,
-            },
-          },
-        },
-        scales: {
-          y: {
-            ticks: { color: '#8b949e' },
-            border: { color: '#30363d' },
-            beginAtZero: true,
-          },
-          x: {
-            ticks: { color: '#8b949e' },
-            border: { color: '#30363d' },
-          },
-        },
-      },
-    })
-
-    return () => {
-      if (chartInstanceRef.current) {
-        chartInstanceRef.current.destroy()
-      }
-    }
-  }, [analysis])
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -128,8 +107,67 @@ export function ActivityPage({ analysis }: { analysis: AnalysisResult }) {
           </div>
         </div>
 
-        <div className="h-96">
-          <canvas ref={chartRef}></canvas>
+        <div className="rounded-lg border border-border bg-card-soft p-4 overflow-x-auto">
+          <div className="flex items-start gap-3 min-w-max">
+            <div className="mt-6 space-y-1 text-[10px] text-muted">
+              <div>Sun</div>
+              <div className="pt-3">Tue</div>
+              <div className="pt-3">Thu</div>
+              <div className="pt-3">Sat</div>
+            </div>
+
+            <div>
+              <div className="flex gap-1 mb-2 h-4 text-[10px] text-muted">
+                {heatmap.monthLabels.map((label, index) => (
+                  <div key={`month-${index}`} className="w-3 text-center leading-4">
+                    {label}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-1">
+                {heatmap.weeks.map((week, weekIndex) => (
+                  <div key={`week-${weekIndex}`} className="flex flex-col gap-1">
+                    {Array.from({ length: 7 }).map((_, dayIndex) => {
+                      const day = week[dayIndex]
+                      const levelClass =
+                        !day || day.level === 0
+                          ? 'bg-[#1b2230]'
+                          : day.level === 1
+                          ? 'bg-[#0e4429]'
+                          : day.level === 2
+                          ? 'bg-[#006d32]'
+                          : day.level === 3
+                          ? 'bg-[#26a641]'
+                          : 'bg-[#39d353]'
+
+                      const tooltip = day
+                        ? `${tooltipDateFormatter.format(day.date)} - ${day.count} commit${day.count === 1 ? '' : 's'}`
+                        : ''
+
+                      return (
+                        <div
+                          key={`day-${weekIndex}-${dayIndex}`}
+                          title={tooltip}
+                          className={`h-3 w-3 rounded-[3px] border border-white/5 ${levelClass}`}
+                        ></div>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 flex items-center justify-end gap-2 text-[10px] text-muted">
+            <span>Less</span>
+            <div className="h-3 w-3 rounded-[3px] border border-white/5 bg-[#1b2230]"></div>
+            <div className="h-3 w-3 rounded-[3px] border border-white/5 bg-[#0e4429]"></div>
+            <div className="h-3 w-3 rounded-[3px] border border-white/5 bg-[#006d32]"></div>
+            <div className="h-3 w-3 rounded-[3px] border border-white/5 bg-[#26a641]"></div>
+            <div className="h-3 w-3 rounded-[3px] border border-white/5 bg-[#39d353]"></div>
+            <span>More</span>
+          </div>
         </div>
 
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">

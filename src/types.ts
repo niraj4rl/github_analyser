@@ -6,6 +6,8 @@ export interface User {
   public_repos?: number
   followers?: number
   following?: number
+  created_at?: string
+  updated_at?: string
 }
 
 export interface AnalysisResult {
@@ -17,6 +19,7 @@ export interface AnalysisResult {
   insights: string[]
   activity: {
     commits_per_week: Array<{ week: number; count: number }>
+    daily_heatmap: Array<{ date: string; count: number }>
     total_commits: number
   }
   repositories: Array<{

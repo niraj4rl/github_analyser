@@ -39,12 +39,31 @@ export function DashboardLayout() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="text-center">
-          <div className="animate-spin mb-4">
-            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full"></div>
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+        <div className="w-full max-w-xl rounded-2xl border border-border bg-card/40 backdrop-blur-xl p-8 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="relative h-14 w-14">
+              <div className="absolute inset-0 rounded-full border-4 border-primary/20"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-primary animate-spin"></div>
+            </div>
+            <div>
+              <p className="text-sm uppercase tracking-[0.12em] text-muted">Preparing Dashboard</p>
+              <h2 className="text-xl font-semibold text-foreground mt-1">Analyzing {username}</h2>
+            </div>
           </div>
-          <p className="text-muted">Loading analysis for {username}...</p>
+
+          <div className="space-y-3">
+            <div className="h-2 rounded-full bg-card-soft overflow-hidden">
+              <div className="h-full w-1/2 bg-gradient-to-r from-primary/30 via-primary to-primary/30 animate-pulse"></div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="h-12 rounded-lg bg-card-soft animate-pulse"></div>
+              <div className="h-12 rounded-lg bg-card-soft animate-pulse [animation-delay:120ms]"></div>
+              <div className="h-12 rounded-lg bg-card-soft animate-pulse [animation-delay:240ms]"></div>
+            </div>
+          </div>
+
+          <p className="text-sm text-muted mt-5">Fetching repositories, contribution timeline, and quality signals. This usually takes a few seconds.</p>
         </div>
       </div>
     )

@@ -12,6 +12,10 @@ type RawAnalysisResponse = {
   risks: string[]
   analytics: {
     commits_per_week: number[]
+    activity_heatmap?: Array<{
+      date: string
+      count: number
+    }>
     languages: Record<string, number>
     repo_stats: Array<{
       name: string
@@ -43,6 +47,7 @@ function normalizeAnalysis(payload: RawAnalysisResponse): AnalysisResult {
     risks: payload.risks ?? [],
     activity: {
       commits_per_week: weekly.map((count, index) => ({ week: index + 1, count })),
+      daily_heatmap: payload.analytics?.activity_heatmap ?? [],
       total_commits: totalCommits,
     },
     repositories: (payload.analytics?.repo_stats ?? []).map((repo) => ({
