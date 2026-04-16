@@ -16,7 +16,7 @@ from .scoring import determine_recommendation, predict_hire_score
 
 
 ANALYSIS_CACHE_TTL_SECONDS = 600
-ANALYSIS_CACHE_VERSION = "v15-full-history-heatmap"
+ANALYSIS_CACHE_VERSION = "v21-overall-github-signal-scoring"
 _ANALYSIS_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
 PR_MERGE_PATTERN = re.compile(r"merge pull request|\bpr\b|pull request", flags=re.IGNORECASE)
 
@@ -70,32 +70,29 @@ def _entropy(shares: dict[str, float]) -> float:
 
 
 def _repo_quality_score(repo: dict[str, Any]) -> float:
-    stars = math.log1p(float(repo.get("stargazers_count", 0)))
-    forks = math.log1p(float(repo.get("forks_count", 0)))
-    watchers = math.log1p(float(repo.get("watchers_count", 0)))
     issues = math.log1p(float(repo.get("open_issues_count", 0)))
     archived_penalty = 12.0 if repo.get("archived") else 0.0
     fork_penalty = 14.0 if repo.get("fork", False) else 0.0
-    recency_bonus = 6.0 if repo.get("pushed_at") else 0.0
-    score = 18 + stars * 3.0 + forks * 2.2 + watchers * 1.2 + recency_bonus - issues * 2.8 - archived_penalty - fork_penalty
+    recency_bonus = 10.0 if repo.get("pushed_at") else 0.0
+    description_bonus = 5.0 if repo.get("description") else 0.0
+    activity_bonus = 4.0 if repo.get("updated_at") else 0.0
+    score = 24 + recency_bonus + description_bonus + activity_bonus - issues * 4.0 - archived_penalty - fork_penalty
     return round(max(0.0, min(score, 100.0)), 2)
 
 
 def _project_complexity_score(repo: dict[str, Any], repo_languages: dict[str, int]) -> float:
     size_norm = min(math.log1p(float(repo.get("size", 0))) / 9.0, 1.0)
     language_count_norm = min(len([v for v in repo_languages.values() if v > 0]) / 6.0, 1.0)
-    stars_norm = min(math.log1p(float(repo.get("stargazers_count", 0))) / 6.0, 1.0)
-    forks_norm = min(math.log1p(float(repo.get("forks_count", 0))) / 6.0, 1.0)
     issues_norm = min(math.log1p(float(repo.get("open_issues_count", 0))) / 5.0, 1.0)
     has_description = 1.0 if repo.get("description") else 0.0
+    active_bonus = 1.0 if repo.get("pushed_at") else 0.0
 
     complexity = (
         size_norm * 0.30
         + language_count_norm * 0.25
         + issues_norm * 0.15
-        + stars_norm * 0.12
-        + forks_norm * 0.10
         + has_description * 0.08
+        + active_bonus * 0.12
     ) * 100
 
     if repo.get("archived"):
@@ -154,6 +151,10 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
         weekly_low_value_commits = [0 for _ in range(effective_weeks)]
         weekly_pr_merge_commits = [0 for _ in range(effective_weeks)]
         weekly_review_events = [0 for _ in range(effective_weeks)]
+        repo_popularity_scores: list[float] = []
+        owned_repo_count = 0
+        collaborated_repo_count = 0
+        active_repo_count = 0
 
         repo_fetch_tasks = []
         for repo in repos:
@@ -191,14 +192,30 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
             repo_owner_login = str((repo.get("owner") or {}).get("login") or "").strip()
             requested_login = str(profile.get("login") or username).strip()
             is_collaborated = bool(repo_owner_login) and repo_owner_login.lower() != requested_login.lower()
+            if is_collaborated:
+                collaborated_repo_count += 1
+            else:
+                owned_repo_count += 1
 
             quality_score = _repo_quality_score(repo)
             complexity_score = _project_complexity_score(repo, repo_languages)
+            popularity_score = min(
+                (
+                    math.log1p(float(repo.get("stargazers_count", 0))) * 0.55
+                    + math.log1p(float(repo.get("forks_count", 0))) * 0.30
+                    + math.log1p(float(repo.get("watchers_count", 0))) * 0.15
+                )
+                / 5.0,
+                1.0,
+            )
+            repo_popularity_scores.append(popularity_score)
             repo_last_updated = _parse_datetime(repo.get("pushed_at") or repo.get("updated_at"))
             activity_score = 0.0
             if repo_last_updated:
                 age_days = max((datetime.now(timezone.utc) - repo_last_updated).days, 0)
                 activity_score = round(max(0.0, 100.0 - min(age_days, 365) / 2.2), 2)
+            if activity_score >= 35.0 or quality_score >= 55.0:
+                active_repo_count += 1
 
             repo_stats.append(
                 {
@@ -286,17 +303,33 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
         active_weeks = sum(1 for value in activity_by_week if value > 0)
         avg_commits = total_commits / effective_weeks if effective_weeks else 0.0
         consistency = min((active_weeks / effective_weeks) * 0.7 + (avg_commits / 12.0) * 0.3, 1.0)
+        contribution_volume = min(math.log1p(total_commits) / math.log1p(80), 1.0)
         repo_quality = min((sum(item["quality_score"] for item in repo_stats) / max(len(repo_stats), 1)) / 100, 1.0)
         project_complexity = min((sum(item["complexity_score"] for item in repo_stats) / max(len(repo_stats), 1)) / 100, 1.0)
-        engagement = min((profile.get("followers", 0) / max(profile.get("following", 1), 1)) * 0.15 + (total_commits / 80.0) * 0.85, 1.0)
+        engagement = min(
+            (len(repo_stats) / 12.0) * 0.22
+            + (total_commits / 80.0) * 0.42
+            + (active_repo_count / max(len(repo_stats), 1)) * 0.36,
+            1.0,
+        )
         language_diversity = min(language_entropy / 4.0, 1.0)
         activity_recency = min(sum(activity_by_week[-6:]) / 40.0, 1.0)
         commit_intent = min(sum(1.0 if item["tag"] != "Low Value" else 0.2 for item in commit_intelligence) / max(len(commit_intelligence), 1), 1.0)
         low_value_count = sum(1 for item in commit_intelligence if item["tag"] == "Low Value")
         risk_penalty = min(low_value_count / max(len(commit_intelligence), 1), 1.0)
+        profile_followers = int(profile.get("followers", 0) or 0)
+        profile_following = int(profile.get("following", 0) or 0)
+        profile_public_repos = int(profile.get("public_repos", 0) or 0)
+        account_age_days = max((now_utc - profile_created_at).days, 0) if profile_created_at else 0
+        account_maturity = min(math.log1p(account_age_days / 30.0) / math.log1p(120), 1.0) if account_age_days > 0 else 0.0
+        profile_popularity = min(math.log1p(profile_followers) / math.log1p(500), 1.0) if profile_followers > 0 else 0.0
+        portfolio_breadth = min(math.log1p(max(len(repo_stats), profile_public_repos)) / math.log1p(30), 1.0)
+        collaboration_depth = min(collaborated_repo_count / max(len(repo_stats), 1), 1.0)
+        impact_signals = min(sum(repo_popularity_scores) / max(len(repo_popularity_scores), 1), 1.0)
 
         metrics = {
             "consistency": consistency,
+            "contribution_volume": contribution_volume,
             "repo_quality": repo_quality,
             "project_complexity": project_complexity,
             "engagement": engagement,
@@ -305,6 +338,11 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
             "activity_recency": activity_recency,
             "commit_intent": commit_intent,
             "risk_penalty": risk_penalty,
+            "account_maturity": account_maturity,
+            "profile_popularity": profile_popularity,
+            "portfolio_breadth": portfolio_breadth,
+            "collaboration_depth": collaboration_depth,
+            "impact_signals": impact_signals,
         }
 
         repo_breadth_denominator = float(max(len(repos), 1))
@@ -345,9 +383,23 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
             **hmm_metrics,
             **metrics,
         }
-        hire_score, coefficients = predict_hire_score(metrics)
+        hire_score, coefficients, score_diagnostics = predict_hire_score(metrics)
+
+        # Guardrail: avoid mid/high scores for sparse or stale contribution histories.
+        if total_commits == 0:
+            hire_score = 0
+        elif total_commits < 3:
+            hire_score = min(hire_score, 20)
+        elif total_commits < 10:
+            hire_score = min(hire_score, 40)
+        elif total_commits < 20 and consistency < 0.25 and activity_recency < 0.15:
+            hire_score = min(hire_score, 55)
 
         risks: list[str] = []
+        if total_commits == 0:
+            risks.append("No contribution activity was detected in the selected period.")
+        if account_maturity < 0.15 and total_commits < 5:
+            risks.append("The GitHub history is still thin, so the score has limited historical evidence.")
         if risk_penalty >= 0.35:
             risks.append("A noticeable share of commits are low-signal or maintenance-heavy.")
         if min(activity_by_week[-8:], default=0) == 0:
@@ -356,12 +408,22 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
             risks.append("Repository quality signals are below the hiring threshold.")
         if engagement < 0.2:
             risks.append("Community engagement is limited relative to activity.")
+        if impact_signals < 0.12 and len(repo_stats) > 0:
+            risks.append("Public repository impact is limited, so the score relies mostly on activity signals.")
         if hmm_result.decline_risk >= 0.45:
             risks.append("HMM indicates elevated short-term decline risk.")
         if hmm_result.stability < 0.45:
             risks.append("Hidden state trajectory is unstable across recent weeks.")
 
         recommendation = determine_recommendation(hire_score, state, risks, hmm_metrics)
+        if total_commits == 0:
+            state = "Insufficient Evidence"
+            trend = "No Activity"
+            recommendation = "Insufficient Evidence"
+        elif total_commits < 3 or (account_maturity < 0.15 and total_commits < 5):
+            recommendation = "Insufficient Evidence"
+        elif total_commits < 10 and hire_score < 45:
+            recommendation = "Needs Review"
 
         full_window_commits = activity_by_week
         activity_heatmap = [{"date": key, "count": count} for key, count in sorted(heatmap_counts.items())]
@@ -395,11 +457,17 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
             if (repo.get("complexity_score", 0) >= 45 or repo.get("quality_score", 0) >= 50)
             and repo.get("language")
         ]
-        strength_insight = f"This developer looks strongest in {skill.lower()} work."
-        language_style = "works across many languages" if language_entropy > 1.6 else "mostly focuses on a small set of languages"
+        if total_commits == 0:
+            strength_insight = "No contribution activity was detected in the selected period."
+            language_style = "has not shown enough contribution activity to infer a reliable coding pattern"
+        else:
+            strength_insight = f"This developer looks strongest in {skill.lower()} work."
+            language_style = "works across many languages" if language_entropy > 1.6 else "mostly focuses on a small set of languages"
         insights = [
             strength_insight,
             f"They made {total_commits} commits during the selected time period.",
+            f"The GitHub account is about {account_age_days // 365} year(s) old with {profile_public_repos} public repos, {profile_followers} followers, and {profile_following} following.",
+            f"Repository mix includes {owned_repo_count} owned repo(s) and {collaborated_repo_count} collaborative repo(s).",
             f"HMM confidence is {hmm_result.confidence * 100:.0f}% with {hmm_result.decline_risk * 100:.0f}% next-step decline risk.",
             f"Hidden-state stability is {hmm_result.stability * 100:.0f}% and momentum is {hmm_result.momentum * 100:.0f}/100.",
             f"Project complexity score is {project_complexity * 100:.0f}/100 and remains a major factor in the final score.",
@@ -412,6 +480,8 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
             insights.append(f"Most standout project right now is {best_repo['name']}.")
         if recommendation == "Strong Hire":
             insights.append("This profile looks ready for a strong hire recommendation.")
+        if recommendation == "Insufficient Evidence":
+            insights.append("There is not enough contribution data to make a confident hiring judgment yet.")
 
         result = {
             "profile": profile_payload,
@@ -443,7 +513,7 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
             "risks": risks,
             "score_breakdown": {
                 **metrics,
-                "model_intercept": 0.0,
+                **score_diagnostics,
                 **{f"coef_{key}": value for key, value in coefficients.items()},
             },
         }
