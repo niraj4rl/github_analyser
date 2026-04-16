@@ -11,7 +11,7 @@ export function InsightsPage({ analysis }: { analysis: AnalysisResult }) {
         <div className="space-y-3">
           {analysis.insights.map((insight, idx) => (
             <div key={idx} className="flex items-start gap-3">
-              <div className="text-primary mt-1">→</div>
+              <div className="text-foreground/80 mt-1">→</div>
               <p className="text-foreground">{insight}</p>
             </div>
           ))}
@@ -19,15 +19,15 @@ export function InsightsPage({ analysis }: { analysis: AnalysisResult }) {
       </div>
 
       {analysis.risks && analysis.risks.length > 0 && (
-        <div className="glass-panel rounded-lg p-6 border-l-2 border-danger">
-          <h3 className="text-lg font-semibold text-danger mb-4 flex items-center gap-2">
+        <div className="glass-panel rounded-lg p-6 border-l-2 border-white/20">
+          <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
             <AlertCircle className="w-5 h-5" />
             Risk Assessment
           </h3>
           <div className="space-y-3">
             {analysis.risks.map((risk, idx) => (
               <div key={idx} className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-danger mt-2"></div>
+                <div className="w-2 h-2 rounded-full bg-white/55 mt-2"></div>
                 <p className="text-foreground">{risk}</p>
               </div>
             ))}

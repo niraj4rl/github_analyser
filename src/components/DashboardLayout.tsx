@@ -40,11 +40,11 @@ export function DashboardLayout() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <div className="w-full max-w-xl rounded-2xl border border-border bg-card/40 backdrop-blur-xl p-8 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+        <div className="w-full max-w-xl rounded-2xl border border-white/14 bg-black/90 backdrop-blur-xl p-8 shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
           <div className="flex items-center gap-4 mb-6">
             <div className="relative h-14 w-14">
-              <div className="absolute inset-0 rounded-full border-4 border-primary/20"></div>
-              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-primary animate-spin"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-white/12"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-white animate-spin"></div>
             </div>
             <div>
               <p className="text-sm uppercase tracking-[0.12em] text-muted">Preparing Dashboard</p>
@@ -53,13 +53,13 @@ export function DashboardLayout() {
           </div>
 
           <div className="space-y-3">
-            <div className="h-2 rounded-full bg-card-soft overflow-hidden">
-              <div className="h-full w-1/2 bg-gradient-to-r from-primary/30 via-primary to-primary/30 animate-pulse"></div>
+            <div className="h-2 rounded-full bg-white/8 overflow-hidden">
+              <div className="h-full w-1/2 bg-gradient-to-r from-white/25 via-white to-white/25 animate-pulse"></div>
             </div>
             <div className="grid grid-cols-3 gap-2">
-              <div className="h-12 rounded-lg bg-card-soft animate-pulse"></div>
-              <div className="h-12 rounded-lg bg-card-soft animate-pulse [animation-delay:120ms]"></div>
-              <div className="h-12 rounded-lg bg-card-soft animate-pulse [animation-delay:240ms]"></div>
+              <div className="h-12 rounded-lg bg-white/7 animate-pulse"></div>
+              <div className="h-12 rounded-lg bg-white/7 animate-pulse [animation-delay:120ms]"></div>
+              <div className="h-12 rounded-lg bg-white/7 animate-pulse [animation-delay:240ms]"></div>
             </div>
           </div>
 
@@ -73,10 +73,10 @@ export function DashboardLayout() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="text-center">
-          <p className="text-danger mb-4">{error || 'Failed to load user analysis'}</p>
+          <p className="text-foreground mb-4">{error || 'Failed to load user analysis'}</p>
           <button
             onClick={() => navigate('/')}
-            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition-colors"
+            className="px-4 py-2 bg-white/85 hover:bg-white text-black rounded-lg transition-colors"
           >
             Back to Search
           </button>
@@ -104,11 +104,11 @@ export function DashboardLayout() {
     <div className="flex min-h-screen bg-background">
       <Sidebar activePage={activePage} onPageChange={setActivePage} />
       <main className="flex-1 flex flex-col">
-        <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur px-6 py-4">
+        <header className="sticky top-0 z-40 border-b border-white/10 bg-black/85 backdrop-blur px-6 py-4">
           <div className="flex items-center justify-between">
             <button
               onClick={() => navigate('/')}
-              className="flex items-center gap-2 text-muted hover:text-foreground transition-colors"
+              className="flex items-center gap-2 text-muted hover:text-white transition-colors"
             >
               <ChevronLeft className="w-5 h-5" />
               Back
@@ -119,7 +119,7 @@ export function DashboardLayout() {
                 alt={analysis.profile.login}
                 className="w-8 h-8 rounded-full"
               />
-              <span className="text-foreground font-medium">{analysis.profile.login}</span>
+              <span className="text-white font-medium">{analysis.profile.login}</span>
             </div>
           </div>
         </header>

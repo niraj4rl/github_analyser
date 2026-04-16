@@ -8,17 +8,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: '#05070d',
-        foreground: '#f4f6fb',
-        card: '#0f1420',
-        'card-soft': '#151b2a',
-        border: '#273043',
-        muted: '#93a1b8',
-        primary: '#7f8cff',
-        'primary-hover': '#a09cff',
-        accent: '#7ce6d4',
-        danger: '#ff748a',
-        warning: '#f4b860',
+        background: '#000000',
+        foreground: '#f3f4f6',
+        card: '#080a0f',
+        'card-soft': '#0d1118',
+        border: '#202633',
+        muted: '#98a0ad',
+        primary: '#d9dee8',
+        'primary-hover': '#f3f4f6',
+        accent: '#c7ceda',
+        danger: '#b8c0cd',
+        warning: '#aeb7c5',
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],

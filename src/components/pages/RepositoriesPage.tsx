@@ -22,12 +22,12 @@ export function RepositoriesPage({ analysis }: { analysis: AnalysisResult }) {
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <h3 className="text-lg font-semibold text-primary hover:underline">{repo.name}</h3>
+                  <h3 className="text-lg font-semibold text-foreground hover:underline">{repo.name}</h3>
                   <span
                     className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${
                       repo.isCollaborated
-                        ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
-                        : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                        ? 'border-white/25 bg-white/10 text-foreground'
+                        : 'border-white/20 bg-white/6 text-muted'
                     }`}
                   >
                     {repo.isCollaborated ? 'Collaborated' : 'Owned'}
@@ -52,7 +52,7 @@ export function RepositoriesPage({ analysis }: { analysis: AnalysisResult }) {
                 </div>
               </div>
               {repo.stars > 0 && (
-                <div className="flex items-center gap-1 text-accent">
+                <div className="flex items-center gap-1 text-foreground">
                   <Star className="w-4 h-4" />
                   <span className="text-sm font-medium">{repo.stars}</span>
                 </div>

@@ -2,77 +2,74 @@ import { motion } from 'framer-motion'
 import { Github } from 'lucide-react'
 import { SearchBar } from '@/components/SearchBar'
 
-const floatingCapsules = [
-  'left-[8%] top-[12%] h-10 w-64 rotate-[12deg] bg-[linear-gradient(90deg,rgba(127,140,255,0.30),rgba(255,255,255,0.05))]',
-  'right-[7%] top-[12%] h-10 w-60 -rotate-[22deg] bg-[linear-gradient(90deg,rgba(244,184,96,0.20),rgba(255,255,255,0.04))]',
-  'left-[15%] bottom-[16%] h-12 w-72 -rotate-[8deg] bg-[linear-gradient(90deg,rgba(124,230,212,0.18),rgba(255,255,255,0.04))]',
-  'right-[6%] bottom-[11%] h-12 w-80 -rotate-[16deg] bg-[linear-gradient(90deg,rgba(240,157,207,0.18),rgba(255,255,255,0.04))]',
+const floatingLogos = [
+  { className: 'left-[4%] top-[8%] h-16 w-16', delay: 0.1, duration: 10.6, angle: -16, driftX: 8, driftY: 12 },
+  { className: 'left-[9%] top-[24%] h-12 w-12', delay: 0.8, duration: 12.4, angle: 22, driftX: -7, driftY: 10 },
+  { className: 'left-[14%] top-[56%] h-14 w-14', delay: 0.4, duration: 11.1, angle: -8, driftX: 9, driftY: -11 },
+  { className: 'left-[20%] top-[14%] h-10 w-10', delay: 1.2, duration: 13.2, angle: 28, driftX: -6, driftY: 9 },
+  { className: 'left-[23%] top-[74%] h-12 w-12', delay: 0.3, duration: 10.8, angle: -24, driftX: 8, driftY: -8 },
+  { className: 'left-[30%] top-[30%] h-20 w-20', delay: 1.0, duration: 14.0, angle: 12, driftX: 10, driftY: 13 },
+  { className: 'left-[36%] top-[9%] h-11 w-11', delay: 0.6, duration: 11.7, angle: -20, driftX: -8, driftY: 10 },
+  { className: 'left-[41%] top-[63%] h-10 w-10', delay: 0.2, duration: 12.6, angle: 18, driftX: 7, driftY: -10 },
+  { className: 'left-[47%] top-[18%] h-[3.75rem] w-[3.75rem]', delay: 1.3, duration: 13.6, angle: -10, driftX: -9, driftY: 11 },
+  { className: 'left-[52%] top-[42%] h-12 w-12', delay: 0.7, duration: 10.9, angle: 26, driftX: 6, driftY: -9 },
+  { className: 'left-[58%] top-[11%] h-[4.25rem] w-[4.25rem]', delay: 0.5, duration: 12.2, angle: -28, driftX: -7, driftY: 12 },
+  { className: 'left-[63%] top-[67%] h-12 w-12', delay: 1.5, duration: 14.3, angle: 14, driftX: 8, driftY: -12 },
+  { className: 'left-[68%] top-[27%] h-10 w-10', delay: 0.15, duration: 11.5, angle: -14, driftX: -8, driftY: 9 },
+  { className: 'left-[73%] top-[52%] h-[4.5rem] w-[4.5rem]', delay: 0.95, duration: 13.9, angle: 20, driftX: 10, driftY: -11 },
+  { className: 'left-[80%] top-[16%] h-11 w-11', delay: 0.35, duration: 10.4, angle: -26, driftX: -7, driftY: 10 },
+  { className: 'left-[86%] top-[36%] h-13 w-13', delay: 1.1, duration: 12.8, angle: 8, driftX: 7, driftY: -8 },
+  { className: 'left-[91%] top-[58%] h-9 w-9', delay: 0.55, duration: 11.0, angle: -18, driftX: -6, driftY: 8 },
+  { className: 'left-[7%] bottom-[16%] h-12 w-12', delay: 1.4, duration: 12.9, angle: 24, driftX: 8, driftY: -10 },
+  { className: 'left-[15%] bottom-[8%] h-10 w-10', delay: 0.25, duration: 10.7, angle: -12, driftX: -7, driftY: 9 },
+  { className: 'left-[27%] bottom-[20%] h-16 w-16', delay: 1.0, duration: 14.1, angle: 18, driftX: 10, driftY: -12 },
+  { className: 'left-[38%] bottom-[12%] h-11 w-11', delay: 0.45, duration: 11.6, angle: -22, driftX: -8, driftY: 8 },
+  { className: 'left-[49%] bottom-[24%] h-14 w-14', delay: 0.9, duration: 13.3, angle: 10, driftX: 9, driftY: -11 },
+  { className: 'left-[61%] bottom-[18%] h-12 w-12', delay: 1.25, duration: 12.1, angle: -8, driftX: -7, driftY: 10 },
+  { className: 'left-[72%] bottom-[10%] h-10 w-10', delay: 0.3, duration: 10.5, angle: 28, driftX: 7, driftY: -8 },
+  { className: 'left-[83%] bottom-[26%] h-[3.75rem] w-[3.75rem]', delay: 0.75, duration: 13.7, angle: -20, driftX: -9, driftY: 12 },
+  { className: 'left-[89%] bottom-[12%] h-11 w-11', delay: 1.35, duration: 11.9, angle: 16, driftX: 8, driftY: -9 },
+  { className: 'left-[44%] top-[80%] h-9 w-9', delay: 0.65, duration: 10.3, angle: -30, driftX: 6, driftY: 7 },
+  { className: 'left-[56%] top-[74%] h-10 w-10', delay: 1.05, duration: 12.7, angle: 30, driftX: -6, driftY: -8 },
 ]
 
 export function LandingPage() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#020305] text-white">
-      <div aria-hidden className="absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,rgba(255,255,255,0.06),transparent_28%),radial-gradient(circle_at_18%_28%,rgba(127,140,255,0.08),transparent_18%),radial-gradient(circle_at_82%_24%,rgba(244,184,96,0.06),transparent_16%)]" />
-      <div aria-hidden className="absolute inset-0 opacity-[0.12] bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:72px_72px]" />
+    <div className="relative min-h-screen overflow-hidden bg-black text-white">
+      <div aria-hidden className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.05),transparent_32%)]" />
+      <div aria-hidden className="absolute inset-0 opacity-[0.08] bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:72px_72px]" />
 
-      {floatingCapsules.map((className, index) => (
+      {floatingLogos.map((item, index) => (
         <motion.div
-          key={className}
+          key={`${item.className}-${index}`}
           aria-hidden
-          className={`absolute rounded-full border border-white/10 blur-[1px] ${className}`}
-          animate={{ y: [0, index % 2 === 0 ? -10 : 10, 0], rotate: [0, index % 2 === 0 ? 2 : -2, 0] }}
-          transition={{ duration: 8 + index, repeat: Infinity, ease: 'easeInOut' }}
-        />
+          className={`absolute flex items-center justify-center rounded-full ${item.className}`}
+          initial={{ opacity: 0, scale: 0.7 }}
+          animate={{
+            opacity: [0.2, 0.42, 0.25],
+            scale: [0.96, 1.08, 0.99],
+            y: [0, item.driftY, 0],
+            x: [0, item.driftX, 0],
+            rotate: [item.angle, item.angle + 7, item.angle],
+          }}
+          transition={{ duration: item.duration, repeat: Infinity, ease: 'easeInOut', delay: item.delay }}
+        >
+          <Github className="h-full w-full text-white drop-shadow-[0_0_16px_rgba(255,255,255,0.28)]" />
+        </motion.div>
       ))}
 
       <div className="relative z-10 flex min-h-screen flex-col">
-        <header className="sticky top-0 z-40 border-b border-white/8 bg-[#020305]/70 backdrop-blur-2xl">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 md:px-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] shadow-[0_0_40px_rgba(127,140,255,0.08)]">
-                <Github className="h-4 w-4 text-white/90" />
-              </div>
-              <div>
-                <div className="text-sm font-medium text-white/86">GitHub Hiring Intelligence</div>
-              </div>
-            </div>
-
-            <a
-              href="#start"
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-white/78 shadow-[0_12px_40px_rgba(0,0,0,0.25)] transition-all hover:border-white/20 hover:bg-white/[0.06]"
-            >
-              Open Search
-            </a>
-          </div>
-        </header>
-
         <main className="flex-1 px-4 py-12 md:px-6 md:py-16">
           <div className="mx-auto flex min-h-[calc(100vh-12rem)] max-w-5xl flex-col items-center justify-center text-center">
-            <motion.div
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/70 backdrop-blur-xl"
-            >
-              <span className="h-2 w-2 rounded-full bg-gradient-to-r from-[#7f8cff] via-[#f0a8d2] to-[#7ce6d4] shadow-[0_0_18px_rgba(127,140,255,0.8)]" />
-              Shape Landing Hero inspired GitHub scoring
-            </motion.div>
-
             <motion.div
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.65, delay: 0.05 }}
               className="relative mt-10 space-y-6"
             >
-              <h1 className="max-w-5xl text-5xl font-black tracking-tight text-white md:text-6xl lg:text-7xl xl:text-[6rem] xl:leading-[0.92]">
-                Elevate Your{' '}
-                <span className="bg-gradient-to-r from-[#a6b0ff] via-[#f4d3ff] to-[#ffc4d7] bg-clip-text text-transparent">
-                  GitHub Vision
-                </span>
+                <h1 className="max-w-5xl text-5xl font-black tracking-tight text-white md:text-6xl lg:text-7xl xl:text-[6rem] xl:leading-[0.92]">
+                GitInsight
               </h1>
-              <p className="mx-auto max-w-2xl text-base leading-7 text-white/60 md:text-lg md:leading-8">
-                Premium GitHub intelligence with a dark geometric system, soft capsule shapes, subtle motion, and a score that treats repository quality and project complexity as the primary signal.
-              </p>
             </motion.div>
 
             <div id="start" className="mt-12 w-full">

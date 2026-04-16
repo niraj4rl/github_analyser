@@ -134,12 +134,12 @@ export function ActivityPage({ analysis }: { analysis: AnalysisResult }) {
                         !day || day.level === 0
                           ? 'bg-[#1b2230]'
                           : day.level === 1
-                          ? 'bg-[#0e4429]'
+                          ? 'bg-[#2a303c]'
                           : day.level === 2
-                          ? 'bg-[#006d32]'
+                          ? 'bg-[#39404f]'
                           : day.level === 3
-                          ? 'bg-[#26a641]'
-                          : 'bg-[#39d353]'
+                          ? 'bg-[#495265]'
+                          : 'bg-[#5d667a]'
 
                       const tooltip = day
                         ? `${tooltipDateFormatter.format(day.date)} - ${day.count} commit${day.count === 1 ? '' : 's'}`
@@ -162,10 +162,10 @@ export function ActivityPage({ analysis }: { analysis: AnalysisResult }) {
           <div className="mt-3 flex items-center justify-end gap-2 text-[10px] text-muted">
             <span>Less</span>
             <div className="h-3 w-3 rounded-[3px] border border-white/5 bg-[#1b2230]"></div>
-            <div className="h-3 w-3 rounded-[3px] border border-white/5 bg-[#0e4429]"></div>
-            <div className="h-3 w-3 rounded-[3px] border border-white/5 bg-[#006d32]"></div>
-            <div className="h-3 w-3 rounded-[3px] border border-white/5 bg-[#26a641]"></div>
-            <div className="h-3 w-3 rounded-[3px] border border-white/5 bg-[#39d353]"></div>
+            <div className="h-3 w-3 rounded-[3px] border border-white/5 bg-[#2a303c]"></div>
+            <div className="h-3 w-3 rounded-[3px] border border-white/5 bg-[#39404f]"></div>
+            <div className="h-3 w-3 rounded-[3px] border border-white/5 bg-[#495265]"></div>
+            <div className="h-3 w-3 rounded-[3px] border border-white/5 bg-[#5d667a]"></div>
             <span>More</span>
           </div>
         </div>
@@ -177,7 +177,7 @@ export function ActivityPage({ analysis }: { analysis: AnalysisResult }) {
           </div>
           <div className="p-4 bg-card-soft rounded-lg border border-border">
             <div className="text-sm text-muted">Last 12 Weeks vs Previous 12</div>
-            <div className={`text-3xl font-bold ${trendDelta >= 0 ? 'text-accent' : 'text-warning'}`}>
+            <div className={`text-3xl font-bold ${trendDelta >= 0 ? 'text-foreground' : 'text-muted'}`}>
               {trendDelta >= 0 ? '+' : ''}{trendDelta}
             </div>
             <div className="text-xs text-muted mt-1">
