@@ -1,4 +1,4 @@
-# Intelligent Developer Hiring & Analytics System
+# GitInsight - Intelligent Developer Hiring & Analytics System
 
 FastAPI + GitHub API + ML + HMM dashboard for developer hiring analytics.
 
