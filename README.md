@@ -35,8 +35,8 @@ The platform is built for extensibility and can be adapted for both individual a
 ## Architecture
 
 ```
-┌────────────┐      REST API      ┌──────────────┐      ┌──────────────┐
-│  Frontend  │ <───────────────> │   FastAPI    │ <───> │  GitHub API  │
+┌────────────┐      REST API     ┌──────────────┐      ┌──────────────┐
+│  Frontend  │ <───────────────> │   FastAPI    │ <───>│  GitHub API  │
 │  (React)   │                   │   Backend    │      │  + ML/NLP    │
 └────────────┘                   └──────────────┘      └──────────────┘
 ```
