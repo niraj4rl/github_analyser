@@ -40,6 +40,10 @@ The platform is built for extensibility and can be adapted for both individual a
 │  (React)   │                   │   Backend    │      │  + ML/NLP    │
 └────────────┘                   └──────────────┘      └──────────────┘
 ```
+## Outputs
+<img width="1919" height="1079" alt="Screenshot 2026-04-22 180141" src="https://github.com/user-attachments/assets/569bec6b-b541-4219-a9c3-f442222bc603" />
+
+
 
 ## Getting Started (Local Development)
 
