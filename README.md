@@ -79,10 +79,6 @@ The platform is built for extensibility and can be adapted for both individual a
 
 This project is currently in local development and not yet deployed. If you’d like a demo or want to contribute, please connect or check out the repository!
 
-## Screenshots
-
-_Add screenshots or GIFs of the dashboard here._
-
 ## License
 
 MIT License
