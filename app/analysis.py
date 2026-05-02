@@ -499,6 +499,7 @@ async def _analyze_user_live(username: str, settings: Settings) -> dict[str, Any
                     "sequence": hmm_result.sequence,
                     "matrix": hmm_result.transitions,
                 },
+                "commit_intelligence_all": commit_intelligence,
                 "commit_intelligence": commits_for_frontend,
                 "hidden_state_probabilities": hmm_result.probabilities,
                 "hmm_diagnostics": {

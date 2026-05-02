@@ -17,6 +17,10 @@ build
 .env.local
 .env.*.local
 *.log
+exports/
+exports_test/
+exports_test2/
+*_analysis.json
 
 # IDE
 .vscode
@@ -33,3 +37,7 @@ __pycache__
 env/
 venv/
 .venv
+
+# Local helper scripts
+test_connection.py
+verify_db.py
